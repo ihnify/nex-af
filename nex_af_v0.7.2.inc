@@ -1,1289 +1,1222 @@
-/*
-Anti-Flood by Nexius v0.7.2
-Publics:
-OnDialogResponse (0)
-OnEnterExitModShop (1)
-OnPlayerClickMap (2)
-OnPlayerClickPlayer (3)
-OnPlayerClickTextDraw (4)
-OnPlayerCommandText (5)
-OnPlayerDeath (6)
-OnPlayerEnterVehicle (7)
-OnPlayerExitVehicle (8)
-OnPlayerInteriorChange (9)
-OnPlayerPickUpPickup (10)
-OnPlayerRequestClass (11)
-OnPlayerSelectedMenuRow (12)
-OnPlayerStateChange (13)
-OnVehicleMod (14)
-OnVehiclePaintjob (15)
-OnVehicleRespray (16)
-OnPlayerSpawn (17)
-OnVehicleDeath (18)
-OnPlayerText (19)
-OnPlayerEnterCheckpoint (20)
-OnPlayerLeaveCheckpoint (21)
-OnPlayerRequestSpawn (22)
-OnPlayerExitedMenu (23)
-OnPlayerDeath (for killer) (24)
-OnIncomingConnection (25)
-Other: Cross-public antiflood (26)
-*/
-
 #include <a_samp>
-
-#define MIN_CONNECTED_TIME	1000    //Minimum stay player on the server
 
 //Min time call public
 //Time in Milliseconds
-static const Mtc[27] = {
-	250,	//OnDialogResponse
-	800,	//OnEnterExitModShop
-	150,	//OnPlayerClickMap
-	500,	//OnPlayerClickPlayer
-	180,	//OnPlayerClickTextDraw
-	400,	//OnPlayerCommandText
-	3000,	//OnPlayerDeath
-	150,	//OnPlayerEnterVehicle
-	300,	//OnPlayerExitVehicle
-	500,	//OnPlayerInteriorChange
-	400,	//OnPlayerPickUpPickup
-	180,	//OnPlayerRequestClass
-	250,	//OnPlayerSelectedMenuRow
-	600,	//OnPlayerStateChange
-	530,	//OnVehicleMod
-	530,	//OnVehiclePaintjob
-	530,	//OnVehicleRespray
-	1000,	//OnPlayerSpawn
-	600,	//OnVehicleDeath
-	400,	//OnPlayerText
-	580,	//OnPlayerEnterCheckpoint
-	580,	//OnPlayerLeaveCheckpoint
-	200,	//OnPlayerRequestSpawn
-	350,	//OnPlayerExitedMenu
-	320,	//OnPlayerDeath (for killer)
-	300,	//OnIncomingConnection
-	150/*,	//Cross-public
-	580,	//OnPlayerEnterRaceCheckpoint
-	580,	//OnPlayerLeaveRaceCheckpoint
-	180*/	//OnPlayerClickPlayerTextDraw
-},
-
-//Max counts calls
-Mfc[27] =
+static const ac_Mtfc[][] =
 {
-	4,		//OnDialogResponse
-	2,		//OnEnterExitModShop
-	5,		//OnPlayerClickMap
-	5,		//OnPlayerClickPlayer
-	5,		//OnPlayerClickTextDraw
-	4,		//OnPlayerCommandText
-	2,		//OnPlayerDeath
-	5,		//OnPlayerEnterVehicle
-	3,		//OnPlayerExitVehicle
-	3,		//OnPlayerInteriorChange
-	3,		//OnPlayerPickUpPickup
-	5,		//OnPlayerRequestClass
-	3,		//OnPlayerSelectedMenuRow
-	3,		//OnPlayerStateChange
-	3,		//OnVehicleMod
-	3,		//OnVehiclePaintjob
-	3,		//OnVehicleRespray
-	2,		//OnPlayerSpawn
-	2,		//OnVehicleDeath
-	4,		//OnPlayerText
-	3,		//OnPlayerEnterCheckpoint
-	3,		//OnPlayerLeaveCheckpoint
-	3,		//OnPlayerRequestSpawn
-	2,		//OnPlayerExitedMenu
-	3,		//OnPlayerDeath (for killer)
-	2,		//OnIncomingConnection
-	4/*,	//Cross-public
-	2,		//OnPlayerEnterRaceCheckpoint
-	2,		//OnPlayerLeaveRaceCheckpoint
-	5*/		//OnPlayerClickPlayerTextDraw
+	{150, 5},	//0 OnDialogResponse
+	{800, 2},	//1 OnEnterExitModShop
+	{250, 5},	//2 OnPlayerClickMap
+	{450, 5},	//3 OnPlayerClickPlayer
+	{50, 8},	//4 OnPlayerClickTextDraw
+	{400, 5},	//5 OnPlayerCommandText
+	{50, 8},	//6 OnPlayerEnterVehicle
+	{50, 11},	//7 OnPlayerExitVehicle
+	{150, 8},	//8 OnPlayerPickUpPickup
+	{150, 8},	//9 OnPlayerRequestClass
+	{150, 5},	//10 OnPlayerSelectedMenuRow
+	{600, 5},	//11 OnPlayerStateChange
+	{450, 2},	//12 OnVehicleMod
+	{450, 2},	//13 OnVehiclePaintjob
+	{450, 2},	//14 OnVehicleRespray
+	{300, 1},	//15 OnVehicleDeath
+	{450, 3},	//16 OnPlayerText
+	{150, 8},	//17 OnPlayerEnterCheckpoint
+	{150, 8},	//18 OnPlayerLeaveCheckpoint
+	{150, 5},	//19 OnPlayerRequestSpawn
+	{150, 5},	//20 OnPlayerExitedMenu
+	{150, 8},	//21 OnPlayerEnterRaceCheckpoint
+	{150, 8},	//22 OnPlayerLeaveRaceCheckpoint
+	{50, 8},	//23 OnPlayerClickPlayerTextDraw
+	{150, 5},	//24 OnVehicleDamageStatusUpdate
+	{150, 8},	//25 OnVehicleSirenStateChange
+	{150, 5},	//26 OnPlayerSelectObject
+	{50, 8}		//27 Cross-public
 };
 
-new
-	Call[27][MAX_PLAYERS],			//Time call public
-	FloodCount[27][MAX_PLAYERS];	//Flood count
+enum acInfo{
+	acACAllow,
+	acCall[sizeof ac_Mtfc],			//Time call public
+	acFloodCount[sizeof ac_Mtfc], //Flood count
+}	
+static 
+	ACInfo[MAX_PLAYERS][acInfo];
 
-forward OnPlayerFlood(playerid, publicid, attempt, time);
 
-public OnPlayerFlood(playerid, publicid, attempt, time)
+static 
+    ac_vType[] =
 {
-    if(attempt > Mfc[publicid])
-	{
-	    if(publicid == 25) return Ban(playerid);
-		return Kick(playerid);
-	}
-	return 1;
-}
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0,
+	0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 3, 2, 5, 0, 0, 0, 3, 3, 3, 0, 0, 0, 0, 0,
+	1, 5, 5, 5, 0, 0, 0, 0, 5, 2, 0, 5, 3, 3, 0, 0, 1, 0, 0, 0,
+	0, 4, 0, 0, 3, 0, 0, 2, 2, 0, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 1, 1, 1, 0, 0, 0, 0, 0, 1,
+	1, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+	0, 5, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 1, 1, 0, 3, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+static ac_IsABoat(modelid) return (430 <= modelid <= 595 && ac_vType[modelid - 400] == 3);
 
-public OnPlayerConnect(playerid)
+
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerConnect(playerid)
+#else
+	public OnPlayerConnect(playerid)
+#endif
 {
-    for(new i = 24; i != -1; --i)
-	{
-	    Call[i][playerid] = 0;
-		FloodCount[i][playerid] = 0;
-	}
-	new a = 1;
-	#if defined af_OnPlayerConnect
-		a = af_OnPlayerConnect(playerid);
+	ACInfo[playerid][acACAllow] = 1; // Enable cheat for player
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerConnect
+		return ac_OnPlayerConnect(playerid);
+	#else
+		return 0;
 	#endif
-	return a;
 }
 
-#if defined _ALS_OnPlayerConnect
-    #undef OnPlayerConnect
-#else
-    #define _ALS_OnPlayerConnect
-#endif
-#define OnPlayerConnect af_OnPlayerConnect
-#if defined af_OnPlayerConnect
-    forward af_OnPlayerConnect(playerid);
-#endif
-
-public OnPlayerDisconnect(playerid, reason)
-{
-    new a = 1;
-    #if defined af_OnPlayerDisconnect
-		a = af_OnPlayerDisconnect(playerid, reason);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerConnect
+		#undef OnPlayerConnect
+	#else
+		#define _ALS_OnPlayerConnect
 	#endif
-	if(NetStats_GetConnectedTime(playerid) > MIN_CONNECTED_TIME)
-	{
-	    FloodCount[25][playerid] = 0;
-	    FloodCount[26][playerid] = 0;
-	}
-	Call[25][playerid] = GetTickCount();
-	Call[26][playerid] = Call[25][playerid];
-	return a;
-}
+	#define OnPlayerConnect ac_OnPlayerConnect
+	#if defined ac_OnPlayerConnect
+		forward ac_OnPlayerConnect(playerid);
+	#endif
+#endif
 
-#if defined _ALS_OnPlayerDisconnect
-    #undef OnPlayerDisconnect
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
 #else
-    #define _ALS_OnPlayerDisconnect
+	public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
 #endif
-#define OnPlayerDisconnect af_OnPlayerDisconnect
-#if defined af_OnPlayerDisconnect
-    forward af_OnPlayerDisconnect(playerid, reason);
-#endif
-
-public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
 {
-	new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[0][playerid] = gtc - Call[0][playerid];
-    if(Call[0][playerid] < Mtc[0])
-    {
-        FloodCount[0][playerid]++;
-		OnPlayerFlood(playerid, 0, FloodCount[0][playerid], Call[0][playerid]);
-    }
-	else if(Call[26][playerid] < Mtc[26])
+	new ac_i = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
+		if(ac_i < ACInfo[playerid][acCall][0] + ac_Mtfc[0][0]) ac_FloodDetect(playerid, 0);
+		else if(ac_i < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][0] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else
-	{
-	    FloodCount[0][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-	new a = 1;
-	#if defined af_OnDialogResponse
-		a = af_OnDialogResponse(playerid, dialogid, response, listitem, inputtext);
-    #endif
-    Call[0][playerid] = GetTickCount();
-    Call[26][playerid] = Call[0][playerid];
-	return a;
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][0] = ac_i;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnDialogResponse
+		return ac_OnDialogResponse(playerid, dialogid, response, listitem, inputtext);
+	#else
+		return 0;
+	#endif
 }
 
-#if defined _ALS_OnDialogResponse
-    #undef OnDialogResponse
-#else
-    #define _ALS_OnDialogResponse
-#endif
-#define OnDialogResponse af_OnDialogResponse
-#if defined af_OnDialogResponse
-    forward af_OnDialogResponse(playerid, dialogid, response, listitem, inputtext[]);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnDialogResponse
+		#undef OnDialogResponse
+	#else
+		#define _ALS_OnDialogResponse
+	#endif
+	#define OnDialogResponse ac_OnDialogResponse
+	#if defined ac_OnDialogResponse
+		forward ac_OnDialogResponse(playerid, dialogid, response, listitem, inputtext[]);
+	#endif
 #endif
 
 public OnEnterExitModShop(playerid, enterexit, interiorid)
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[1][playerid] = gtc - Call[1][playerid];
-    if(Call[1][playerid] < Mtc[1])
-   	{
-		FloodCount[1][playerid]++;
-		OnPlayerFlood(playerid, 1, FloodCount[1][playerid], Call[1][playerid]);
-	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
+    new ac_i = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-	    FloodCount[1][playerid] = 0;
-		FloodCount[26][playerid] = 0;
+		if(ac_i < ACInfo[playerid][acCall][1] + ac_Mtfc[1][0]) ac_FloodDetect(playerid, 1);
+		else if(ac_i < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][1] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-	new a = 1;
-	#if defined af_OnEnterExitModShop
-		a = af_OnEnterExitModShop(playerid, enterexit, interiorid);
-    #endif
-    Call[1][playerid] = GetTickCount();
-    Call[26][playerid] = Call[1][playerid];
-    return a;
-}
-
-#if defined _ALS_OnEnterExitModShop
-    #undef OnEnterExitModShop
-#else
-    #define _ALS_OnEnterExitModShop
-#endif
-#define OnEnterExitModShop af_OnEnterExitModShop
-#if defined af_OnEnterExitModShop
-    forward af_OnEnterExitModShop(playerid, enterexit, interiorid);
-#endif
-
-public OnPlayerClickMap(playerid, Float:fX, Float:fY, Float:fZ)
-{
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[2][playerid] = gtc - Call[2][playerid];
-    if(Call[2][playerid] < Mtc[2])
-	{
-		FloodCount[2][playerid]++;
-		OnPlayerFlood(playerid, 2, FloodCount[2][playerid], Call[2][playerid]);
-	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[2][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-	new a = 1;
-	#if defined af_OnPlayerClickMap
-		a = af_OnPlayerClickMap(playerid, fX, fY, fZ);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][1] = ac_i;
+    #if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnEnterExitModShop
+		return ac_OnEnterExitModShop(playerid, enterexit, interiorid);
+	#else
+		return 1;
 	#endif
-    Call[2][playerid] = GetTickCount();
-    Call[26][playerid] = Call[2][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerClickMap
-    #undef OnPlayerClickMap
-#else
-    #define _ALS_OnPlayerClickMap
-#endif
-#define OnPlayerClickMap af_OnPlayerClickMap
-#if defined af_OnPlayerClickMap
-    forward af_OnPlayerClickMap(playerid, Float:fX, Float:fY, Float:fZ);
-#endif
-
-public OnPlayerClickPlayer(playerid, clickedplayerid, source)
-{
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[3][playerid] = gtc - Call[3][playerid];
-    if(Call[3][playerid] < Mtc[3])
-	{
-		FloodCount[3][playerid]++;
-		OnPlayerFlood(playerid, 3, FloodCount[3][playerid], Call[3][playerid]);
-	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[3][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerClickPlayer
-		a = af_OnPlayerClickPlayer(playerid, clickedplayerid, source);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnEnterExitModShop
+		#undef OnEnterExitModShop
+	#else
+		#define _ALS_OnEnterExitModShop
 	#endif
-    Call[3][playerid] = GetTickCount();
-    Call[26][playerid] = Call[3][playerid];
-	return a;
-}
-
-#if defined _ALS_OnPlayerClickPlayer
-    #undef OnPlayerClickPlayer
-#else
-    #define _ALS_OnPlayerClickPlayer
-#endif
-#define OnPlayerClickPlayer af_OnPlayerClickPlayer
-#if defined af_OnPlayerClickPlayer
-    forward af_OnPlayerClickPlayer(playerid, clickedplayerid, source);
-#endif
-
-public OnPlayerClickTextDraw(playerid, Text:clickedid)
-{
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[4][playerid] = gtc - Call[4][playerid];
-    if(Call[4][playerid] < Mtc[4])
-	{
-		FloodCount[4][playerid]++;
-		OnPlayerFlood(playerid, 4, FloodCount[4][playerid], Call[4][playerid]);
-	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[4][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerClickTextDraw
-		a = af_OnPlayerClickTextDraw(playerid, clickedid);
+	#define OnEnterExitModShop ac_OnEnterExitModShop
+	#if defined ac_OnEnterExitModShop
+		forward ac_OnEnterExitModShop(playerid, enterexit, interiorid);
 	#endif
-    Call[4][playerid] = GetTickCount();
-    Call[26][playerid] = Call[4][playerid];
-	return a;
-}
+#endif
 
-#if defined _ALS_OnPlayerClickTextDraw
-	#undef OnPlayerClickTextDraw
+
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerClickMap(playerid, Float:fX, Float:fY, Float:fZ)
 #else
-	#define _ALS_OnPlayerClickTextDraw
+	public OnPlayerClickMap(playerid, Float:fX, Float:fY, Float:fZ)
 #endif
-#define OnPlayerClickTextDraw af_OnPlayerClickTextDraw
-#if defined af_OnPlayerClickTextDraw
-	forward af_OnPlayerClickTextDraw(playerid, Text:clickedid);
-#endif
-
-public OnPlayerCommandText(playerid, cmdtext[])
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[5][playerid] = gtc - Call[5][playerid];
-    if(Call[5][playerid] < Mtc[5])
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[5][playerid]++;
-		OnPlayerFlood(playerid, 5, FloodCount[5][playerid], Call[5][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][2] + ac_Mtfc[2][0]) ac_FloodDetect(playerid, 2);
+		else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][2] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[5][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerCommandText
-		a = af_OnPlayerCommandText(playerid, cmdtext);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][2] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerClickMap
+		return ac_OnPlayerClickMap(playerid, fX, fY, fZ);
+	#else
+		return 0;
 	#endif
-    Call[5][playerid] = GetTickCount();
-    Call[26][playerid] = Call[5][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerCommandText
-	#undef OnPlayerCommandText
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerClickMap
+		#undef OnPlayerClickMap
+	#else
+		#define _ALS_OnPlayerClickMap
+	#endif
+	#define OnPlayerClickMap ac_OnPlayerClickMap
+	#if defined ac_OnPlayerClickMap
+		forward ac_OnPlayerClickMap(playerid, Float:fX, Float:fY, Float:fZ);
+	#endif
+#endif
+
+
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerClickPlayer(playerid, clickedplayerid, source)
 #else
-	#define _ALS_OnPlayerCommandText
+	public OnPlayerClickPlayer(playerid, clickedplayerid, source)
 #endif
-#define OnPlayerCommandText af_OnPlayerCommandText
-#if defined af_OnPlayerCommandText
-	forward af_OnPlayerCommandText(playerid, cmdtext[]);
-#endif
-
-public OnPlayerDeath(playerid, killerid, reason)
 {
-	new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[6][playerid] = gtc - Call[6][playerid];
-    if(Call[6][playerid] < Mtc[6])
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[6][playerid]++;
-		OnPlayerFlood(playerid, 6, FloodCount[6][playerid], Call[6][playerid]);
-	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[6][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-	if(killerid != INVALID_PLAYER_ID)
-	{
-	    Call[26][killerid] = gtc - Call[26][killerid];
-    	Call[24][killerid] = Call[6][playerid];
-
-    	if(Call[24][killerid] < Mtc[24])
+		if(ac_gtc < ACInfo[playerid][acCall][3] + ac_Mtfc[3][0])
 		{
-			FloodCount[24][killerid]++;
-			OnPlayerFlood(killerid, 24, FloodCount[24][killerid], Call[24][killerid]);
+			ac_FloodDetect(playerid, 3);
+			return 1;
 		}
-	    else if(Call[26][killerid] < Mtc[26])
-    	{
-			FloodCount[26][killerid]++;
-			OnPlayerFlood(killerid, 26, FloodCount[26][killerid], Call[26][killerid]);
-    	}
-    	else
+		if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][3] = ACInfo[playerid][acFloodCount][27] = 0;
+	}
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][3] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerClickPlayer
+		return ac_OnPlayerClickPlayer(playerid, clickedplayerid, source);
+	#else
+		return 0;
+	#endif
+}
+
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerClickPlayer
+		#undef OnPlayerClickPlayer
+	#else
+		#define _ALS_OnPlayerClickPlayer
+	#endif
+	#define OnPlayerClickPlayer ac_OnPlayerClickPlayer
+	#if defined ac_OnPlayerClickPlayer
+		forward ac_OnPlayerClickPlayer(playerid, clickedplayerid, source);
+	#endif
+#endif
+
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerClickTextDraw(playerid, Text:clickedid)
+#else
+	public OnPlayerClickTextDraw(playerid, Text:clickedid)
+#endif
+{
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
+	{
+		if(ac_gtc < ACInfo[playerid][acCall][4] + ac_Mtfc[4][0])
 		{
-	    	FloodCount[24][killerid] = 0;
-			FloodCount[26][killerid] = 0;
+			ac_FloodDetect(playerid, 4);
+			return 1;
 		}
+		if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][4] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    new a = 1;
-	#if defined af_OnPlayerDeath
-		a = af_OnPlayerDeath(playerid, killerid, reason);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][4] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerClickTextDraw
+		return ac_OnPlayerClickTextDraw(playerid, clickedid);
+	#else
+		return 0;
 	#endif
-    if(killerid != INVALID_PLAYER_ID)
-	{
-		Call[24][killerid] = GetTickCount();
-		Call[26][killerid] = Call[24][killerid];
-	}
-    Call[6][playerid] = GetTickCount();
-    Call[26][playerid] = Call[6][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerDeath
-	#undef OnPlayerDeath
-#else
-	#define _ALS_OnPlayerDeath
-#endif
-#define OnPlayerDeath af_OnPlayerDeath
-#if defined af_OnPlayerDeath
-	forward af_OnPlayerDeath(playerid, killerid, reason);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerClickTextDraw
+		#undef OnPlayerClickTextDraw
+	#else
+		#define _ALS_OnPlayerClickTextDraw
+	#endif
+	#define OnPlayerClickTextDraw ac_OnPlayerClickTextDraw
+	#if defined ac_OnPlayerClickTextDraw
+		forward ac_OnPlayerClickTextDraw(playerid, Text:clickedid);
+	#endif
 #endif
 
-public OnPlayerEnterVehicle(playerid, vehicleid, ispassenger)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerCommandText(playerid, cmdtext[])
+#else
+	public OnPlayerCommandText(playerid, cmdtext[])
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[7][playerid] = gtc - Call[7][playerid];
-    if(Call[7][playerid] < Mtc[7])
+	if(!IsPlayerNPC(playerid))
 	{
-		FloodCount[7][playerid]++;
-		OnPlayerFlood(playerid, 7, FloodCount[7][playerid], Call[7][playerid]);
+		new ac_gtc = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_gtc < ACInfo[playerid][acCall][5] + ac_Mtfc[5][0])
+			{
+				ac_FloodDetect(playerid, 5);
+				return 1;
+			}
+			if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][5] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][5] = ac_gtc;
 	}
-	else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[7][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerEnterVehicle
-		a = af_OnPlayerEnterVehicle(playerid, vehicleid, ispassenger);
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerCommandText
+		return ac_OnPlayerCommandText(playerid, cmdtext);
+	#else
+		return 0;
 	#endif
-    Call[7][playerid] = GetTickCount();
-    Call[26][playerid] = Call[7][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerEnterVehicle
-	#undef OnPlayerEnterVehicle
-#else
-	#define _ALS_OnPlayerEnterVehicle
-#endif
-#define OnPlayerEnterVehicle af_OnPlayerEnterVehicle
-#if defined af_OnPlayerEnterVehicle
-	forward af_OnPlayerEnterVehicle(playerid, vehicleid, ispassenger);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerCommandText
+		#undef OnPlayerCommandText
+	#else
+		#define _ALS_OnPlayerCommandText
+	#endif
+	#define OnPlayerCommandText ac_OnPlayerCommandText
+	#if defined ac_OnPlayerCommandText
+		forward ac_OnPlayerCommandText(playerid, cmdtext[]);
+	#endif
 #endif
 
-public OnPlayerExitVehicle(playerid, vehicleid)
+
+#if defined _inc_y_hooks || defined _INC_y_hooks
+    hook OnPlayerEnterVehicle(playerid, vehicleid, ispassenger)
+#else
+	public OnPlayerEnterVehicle(playerid, vehicleid, ispassenger)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[8][playerid] = gtc - Call[8][playerid];
-    if(Call[8][playerid] < Mtc[8])
+	if(!(0 <= playerid < MAX_PLAYERS)) return 0;
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[8][playerid]++;
-		OnPlayerFlood(playerid, 8, FloodCount[8][playerid], Call[8][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][6] + ac_Mtfc[6][0]) ac_FloodDetect(playerid, 6);
+		if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][6] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[8][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerExitVehicle
-		a = af_OnPlayerExitVehicle(playerid, vehicleid);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][6] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerEnterVehicle
+		return ac_OnPlayerEnterVehicle(playerid, vehicleid, ispassenger);
+	#else
+		return 1;
 	#endif
-    Call[8][playerid] = GetTickCount();
-    Call[26][playerid] = Call[8][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerExitVehicle
-	#undef OnPlayerExitVehicle
-#else
-	#define _ALS_OnPlayerExitVehicle
-#endif
-#define OnPlayerExitVehicle af_OnPlayerExitVehicle
-#if defined af_OnPlayerExitVehicle
-	forward af_OnPlayerExitVehicle(playerid, vehicleid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerEnterVehicle
+		#undef OnPlayerEnterVehicle
+	#else
+		#define _ALS_OnPlayerEnterVehicle
+	#endif
+	#define OnPlayerEnterVehicle ac_OnPlayerEnterVehicle
+	#if defined ac_OnPlayerEnterVehicle
+		forward ac_OnPlayerEnterVehicle(playerid, vehicleid, ispassenger);
+	#endif
 #endif
 
-public OnPlayerInteriorChange(playerid, newinteriorid, oldinteriorid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerExitVehicle(playerid, vehicleid)
+#else
+	public OnPlayerExitVehicle(playerid, vehicleid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[9][playerid] = gtc - Call[9][playerid];
-    if(Call[9][playerid] < Mtc[9])
+	if(!(0 <= playerid < MAX_PLAYERS)) return 0;
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[9][playerid]++;
-		OnPlayerFlood(playerid, 9, FloodCount[9][playerid], Call[9][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][7] + ac_Mtfc[7][0]) ac_FloodDetect(playerid, 7);
+		if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][7] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[9][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerInteriorChange
-		a = af_OnPlayerInteriorChange(playerid, newinteriorid, oldinteriorid);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][7] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerExitVehicle
+		return ac_OnPlayerExitVehicle(playerid, vehicleid);
+	#else
+		return 1;
 	#endif
-    Call[9][playerid] = GetTickCount();
-    Call[26][playerid] = Call[9][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerInteriorChange
-	#undef OnPlayerInteriorChange
-#else
-	#define _ALS_OnPlayerInteriorChange
-#endif
-#define OnPlayerInteriorChange af_OnPlayerInteriorChange
-#if defined af_OnPlayerInteriorChange
-	forward af_OnPlayerInteriorChange(playerid, newinteriorid, oldinteriorid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerExitVehicle
+		#undef OnPlayerExitVehicle
+	#else
+		#define _ALS_OnPlayerExitVehicle
+	#endif
+	#define OnPlayerExitVehicle ac_OnPlayerExitVehicle
+	#if defined ac_OnPlayerExitVehicle
+		forward ac_OnPlayerExitVehicle(playerid, vehicleid);
+	#endif
 #endif
 
-public OnPlayerPickUpPickup(playerid, pickupid)
+#if defined OnPlayerPickUpDynamicPickup\
+	&& defined Streamer_GetDistanceToItem\
+	&& defined Streamer_GetIntData
+	#if defined _inc_y_hooks || defined _INC_y_hooks
+		#if defined STREAMER_ENABLE_TAGS
+			hook OnPlayerPickUpDynPickup(playerid, STREAMER_TAG_PICKUP:pickupid)
+		#else
+			hook OnPlayerPickUpDynPickup(playerid, pickupid)
+		#endif
+	#else
+		#if defined STREAMER_ENABLE_TAGS
+			public OnPlayerPickUpDynamicPickup(playerid, STREAMER_TAG_PICKUP:pickupid)
+		#else
+			public OnPlayerPickUpDynamicPickup(playerid, pickupid)
+		#endif
+	#endif
+	{
+		if(!(0 <= playerid < MAX_PLAYERS)) return 0;
+		new ac_i = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_i < ACInfo[playerid][acCall][8] + ac_Mtfc[8][0]) ac_FloodDetect(playerid, 8);
+			else if(ac_i < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][8] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][8] = ac_i;
+		#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+			&& defined ac_OnPlayerPickUpDynamicPickup
+			return ac_OnPlayerPickUpDynamicPickup(playerid, pickupid);
+		#else
+			return 1;
+		#endif
+	}
+
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks
+		#if defined _ALS_OnPlayerPickUpDynamicPicku\
+			|| defined _ALS_OnPlayerPickUpDynPickup\
+			|| defined _ALS_OnPlayerPickUpDynamicPick || defined _ALS_OnPlayerPickUpDynamicPUp
+			#undef OnPlayerPickUpDynamicPickup
+		#else
+			#define _ALS_OnPlayerPickUpDynPickup
+		#endif
+		#define OnPlayerPickUpDynamicPickup ac_OnPlayerPickUpDynamicPickup
+		#if defined ac_OnPlayerPickUpDynamicPickup
+			#if defined STREAMER_ENABLE_TAGS
+				forward ac_OnPlayerPickUpDynamicPickup(playerid, STREAMER_TAG_PICKUP:pickupid);
+			#else
+				forward ac_OnPlayerPickUpDynamicPickup(playerid, pickupid);
+			#endif
+		#endif
+	#endif
+#endif
+
+
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerPickUpPickup(playerid, pickupid)
+#else
+	public OnPlayerPickUpPickup(playerid, pickupid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[10][playerid] = gtc - Call[10][playerid];
-    if(Call[10][playerid] < Mtc[10])
-	{
-		FloodCount[10][playerid]++;
-		OnPlayerFlood(playerid, 10, FloodCount[10][playerid], Call[10][playerid]);
-	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[10][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerPickUpPickup
-		a = af_OnPlayerPickUpPickup(playerid, pickupid);
+	if(!(0 <= playerid < MAX_PLAYERS) || !(0 <= pickupid < MAX_PICKUPS)) return 0;
+	#if defined Streamer_GetItemStreamerID\
+		&& defined IsValidDynamicPickup
+		#if defined STREAMER_ENABLE_TAGS
+			new STREAMER_TAG_PICKUP:streamerid = STREAMER_TAG_PICKUP:Streamer_GetItemStreamerID(playerid, STREAMER_TYPE_PICKUP, pickupid);
+		#else
+			new streamerid = Streamer_GetItemStreamerID(playerid, STREAMER_TYPE_PICKUP, pickupid);
+		#endif
+		if(!IsValidDynamicPickup(streamerid))
+		{
 	#endif
-    Call[10][playerid] = GetTickCount();
-    Call[26][playerid] = Call[10][playerid];
-	return a;
+		new ac_i = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_i < ACInfo[playerid][acCall][8] + ac_Mtfc[8][0]) ac_FloodDetect(playerid, 8);
+			else if(ac_i < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][8] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][8] = ac_i;
+	#if defined Streamer_GetItemStreamerID\
+		&& defined IsValidDynamicPickup
+		}
+	#endif
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerPickUpPickup
+		return ac_OnPlayerPickUpPickup(playerid, pickupid);
+	#else
+		return 1;
+	#endif
 }
 
-#if defined _ALS_OnPlayerPickUpPickup
-	#undef OnPlayerPickUpPickup
-#else
-	#define _ALS_OnPlayerPickUpPickup
-#endif
-#define OnPlayerPickUpPickup af_OnPlayerPickUpPickup
-#if defined af_OnPlayerPickUpPickup
-	forward af_OnPlayerPickUpPickup(playerid, pickupid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerPickUpPickup
+		#undef OnPlayerPickUpPickup
+	#else
+		#define _ALS_OnPlayerPickUpPickup
+	#endif
+	#define OnPlayerPickUpPickup ac_OnPlayerPickUpPickup
+	#if defined ac_OnPlayerPickUpPickup
+		forward ac_OnPlayerPickUpPickup(playerid, pickupid);
+	#endif
 #endif
 
-public OnPlayerRequestClass(playerid, classid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerRequestClass(playerid, classid)
+#else
+	public OnPlayerRequestClass(playerid, classid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[11][playerid] = gtc - Call[11][playerid];
-    if(Call[11][playerid] < Mtc[11])
+	if(!IsPlayerNPC(playerid))
 	{
-		FloodCount[11][playerid]++;
-		OnPlayerFlood(playerid, 11, FloodCount[11][playerid], Call[11][playerid]);
+		new ac_gtc = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_gtc < ACInfo[playerid][acCall][9] + ac_Mtfc[9][0]) ac_FloodDetect(playerid, 9);
+			else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][9] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][9] = ac_gtc;
 	}
-	else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[11][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerRequestClass
-		a = af_OnPlayerRequestClass(playerid, classid);
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerRequestClass
+		return ac_OnPlayerRequestClass(playerid, classid);
+	#else
+		return 1;
 	#endif
-    Call[11][playerid] = GetTickCount();
-    Call[26][playerid] = Call[11][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerRequestClass
-	#undef OnPlayerRequestClass
-#else
-	#define _ALS_OnPlayerRequestClass
-#endif
-#define OnPlayerRequestClass af_OnPlayerRequestClass
-#if defined af_OnPlayerRequestClass
-	forward af_OnPlayerRequestClass(playerid, classid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerRequestClass
+		#undef OnPlayerRequestClass
+	#else
+		#define _ALS_OnPlayerRequestClass
+	#endif
+	#define OnPlayerRequestClass ac_OnPlayerRequestClass
+	#if defined ac_OnPlayerRequestClass
+		forward ac_OnPlayerRequestClass(playerid, classid);
+	#endif
 #endif
 
-public OnPlayerSelectedMenuRow(playerid, row)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerSelectedMenuRow(playerid, row)
+#else
+	public OnPlayerSelectedMenuRow(playerid, row)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[12][playerid] = gtc - Call[12][playerid];
-    if(Call[12][playerid] < Mtc[12])
+	if(!(0 <= playerid < MAX_PLAYERS)) return 0;
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[12][playerid]++;
-		OnPlayerFlood(playerid, 12, FloodCount[12][playerid], Call[12][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][10] + ac_Mtfc[10][0]) ac_FloodDetect(playerid, 10);
+		else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][10] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[12][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerSelectedMenuRow
-		a = af_OnPlayerSelectedMenuRow(playerid, row);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][10] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerSelectedMenuRow
+		return ac_OnPlayerSelectedMenuRow(playerid, row);
+	#else
+		return 1;
 	#endif
-    Call[12][playerid] = GetTickCount();
-    Call[26][playerid] = Call[12][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerSelectedMenuRow
-	#undef OnPlayerSelectedMenuRow
-#else
-	#define _ALS_OnPlayerSelectedMenuRow
-#endif
-#define OnPlayerSelectedMenuRow af_OnPlayerSelectedMenuRow
-#if defined af_OnPlayerSelectedMenuRow
-	forward af_OnPlayerSelectedMenuRow(playerid, row);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerSelectedMenuRow
+		#undef OnPlayerSelectedMenuRow
+	#else
+		#define _ALS_OnPlayerSelectedMenuRow
+	#endif
+	#define OnPlayerSelectedMenuRow ac_OnPlayerSelectedMenuRow
+	#if defined ac_OnPlayerSelectedMenuRow
+		forward ac_OnPlayerSelectedMenuRow(playerid, row);
+	#endif
 #endif
 
-public OnPlayerStateChange(playerid, newstate, oldstate)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerStateChange(playerid, newstate, oldstate)
+#else
+	public OnPlayerStateChange(playerid, newstate, oldstate)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[13][playerid] = gtc - Call[13][playerid];
-    if(Call[13][playerid] < Mtc[13])
+	if(!IsPlayerNPC(playerid))
 	{
-		FloodCount[13][playerid]++;
-		OnPlayerFlood(playerid, 13, FloodCount[13][playerid], Call[13][playerid]);
+		new ac_i = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_i < ACInfo[playerid][acCall][11] + ac_Mtfc[11][0])
+			{
+				if(newstate != PLAYER_STATE_ONFOOT || oldstate != PLAYER_STATE_SPAWNED)
+				{
+					new ac_model;
+					if(oldstate == PLAYER_STATE_DRIVER) ac_model = GetVehicleModel(playerid);
+					else if(newstate == PLAYER_STATE_DRIVER) ac_model = GetVehicleModel(GetPlayerVehicleID(playerid));
+					if(!ac_IsABoat(ac_model)) ac_FloodDetect(playerid, 11);
+				}
+			}
+			else if(ac_i < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][11] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][11] = ac_i;
 	}
-	else if(Call[26][playerid] < Mtc[26])
-	{
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[13][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerStateChange
-		a = af_OnPlayerStateChange(playerid, newstate, oldstate);
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerStateChange
+		return ac_OnPlayerStateChange(playerid, newstate, oldstate);
+	#else
+		return 1;
 	#endif
-    Call[13][playerid] = GetTickCount();
-    Call[26][playerid] = Call[13][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerStateChange
-	#undef OnPlayerStateChange
-#else
-	#define _ALS_OnPlayerStateChange
-#endif
-#define OnPlayerStateChange af_OnPlayerStateChange
-#if defined af_OnPlayerStateChange
-	forward af_OnPlayerStateChange(playerid, newstate, oldstate);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerStateChange
+		#undef OnPlayerStateChange
+	#else
+		#define _ALS_OnPlayerStateChange
+	#endif
+	#define OnPlayerStateChange ac_OnPlayerStateChange
+	#if defined ac_OnPlayerStateChange
+		forward ac_OnPlayerStateChange(playerid, newstate, oldstate);
+	#endif
 #endif
 
-public OnVehicleMod(playerid, vehicleid, componentid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnVehicleMod(playerid, vehicleid, componentid)
+#else
+	public OnVehicleMod(playerid, vehicleid, componentid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[14][playerid] = gtc - Call[14][playerid];
-    if(Call[14][playerid] < Mtc[14])
+	new ac_i = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[14][playerid]++;
-		OnPlayerFlood(playerid, 14, FloodCount[14][playerid], Call[14][playerid]);
+		if(ac_i < ACInfo[playerid][acCall][12] + ac_Mtfc[12][0]) return ac_FloodDetect(playerid, 12);
+		if(ac_i < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][12] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[14][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnVehicleMod
-		a = af_OnVehicleMod(playerid, vehicleid, componentid);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][12] = ac_i;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnVehicleMod
+		return ac_OnVehicleMod(playerid, vehicleid, componentid);
+	#else
+		return 1;
 	#endif
-    Call[14][playerid] = GetTickCount();
-    Call[26][playerid] = Call[14][playerid];
-	return a;
 }
 
-#if defined _ALS_OnVehicleMod
-	#undef OnVehicleMod
-#else
-	#define _ALS_OnVehicleMod
-#endif
-#define OnVehicleMod af_OnVehicleMod
-#if defined af_OnVehicleMod
-	forward af_OnVehicleMod(playerid, vehicleid, componentid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnVehicleMod
+		#undef OnVehicleMod
+	#else
+		#define _ALS_OnVehicleMod
+	#endif
+	#define OnVehicleMod ac_OnVehicleMod
+	#if defined ac_OnVehicleMod
+		forward ac_OnVehicleMod(playerid, vehicleid, componentid);
+	#endif
 #endif
 
-public OnVehiclePaintjob(playerid, vehicleid, paintjobid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnVehiclePaintjob(playerid, vehicleid, paintjobid)
+#else
+	public OnVehiclePaintjob(playerid, vehicleid, paintjobid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[15][playerid] = gtc - Call[15][playerid];
-    if(Call[15][playerid] < Mtc[15])
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[15][playerid]++;
-		OnPlayerFlood(playerid, 15, FloodCount[15][playerid], Call[15][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][13] + ac_Mtfc[13][0]) ac_FloodDetect(playerid, 13);
+		else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][13] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[15][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnVehiclePaintjob
-		a = af_OnVehiclePaintjob(playerid, vehicleid, paintjobid);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][13] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnVehiclePaintjob
+		return ac_OnVehiclePaintjob(playerid, vehicleid, paintjobid);
+	#else
+		return 1;
 	#endif
-    Call[15][playerid] = GetTickCount();
-    Call[26][playerid] = Call[15][playerid];
-	return a;
 }
 
-#if defined _ALS_OnVehiclePaintjob
-	#undef OnVehiclePaintjob
-#else
-	#define _ALS_OnVehiclePaintjob
-#endif
-#define OnVehiclePaintjob af_OnVehiclePaintjob
-#if defined af_OnVehiclePaintjob
-	forward af_OnVehiclePaintjob(playerid, vehicleid, paintjobid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnVehiclePaintjob
+		#undef OnVehiclePaintjob
+	#else
+		#define _ALS_OnVehiclePaintjob
+	#endif
+	#define OnVehiclePaintjob ac_OnVehiclePaintjob
+	#if defined ac_OnVehiclePaintjob
+		forward ac_OnVehiclePaintjob(playerid, vehicleid, paintjobid);
+	#endif
 #endif
 
-public OnVehicleRespray(playerid, vehicleid, color1, color2)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnVehicleRespray(playerid, vehicleid, color1, color2)
+#else
+	public OnVehicleRespray(playerid, vehicleid, color1, color2)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[16][playerid] = gtc - Call[16][playerid];
-    if(Call[16][playerid] < Mtc[16])
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[16][playerid]++;
-		OnPlayerFlood(playerid, 16, FloodCount[16][playerid], Call[16][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][14] + ac_Mtfc[14][0]) return ac_FloodDetect(playerid, 14);
+		if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][14] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-	else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[16][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnVehicleRespray
-		a = af_OnVehicleRespray(playerid, vehicleid, color1, color2);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][14] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnVehicleRespray
+		return ac_OnVehicleRespray(playerid, vehicleid, color1, color2);
+	#else
+		return 1;
 	#endif
-    Call[16][playerid] = GetTickCount();
-    Call[26][playerid] = Call[16][playerid];
-	return a;
 }
 
-#if defined _ALS_OnVehicleRespray
-	#undef OnVehicleRespray
-#else
-	#define _ALS_OnVehicleRespray
-#endif
-#define OnVehicleRespray af_OnVehicleRespray
-#if defined af_OnVehicleRespray
-	forward af_OnVehicleRespray(playerid, vehicleid, color1, color2);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnVehicleRespray
+		#undef OnVehicleRespray
+	#else
+		#define _ALS_OnVehicleRespray
+	#endif
+	#define OnVehicleRespray ac_OnVehicleRespray
+	#if defined ac_OnVehicleRespray
+		forward ac_OnVehicleRespray(playerid, vehicleid, color1, color2);
+	#endif
 #endif
 
-public OnPlayerSpawn(playerid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnVehicleDeath(vehicleid, killerid)
+#else
+	public OnVehicleDeath(vehicleid, killerid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[17][playerid] = gtc - Call[17][playerid];
-    if(Call[17][playerid] < Mtc[17])
+	if(IsPlayerConnected(killerid) && !IsPlayerNPC(killerid))
 	{
-		FloodCount[17][playerid]++;
-		OnPlayerFlood(playerid, 17, FloodCount[17][playerid], Call[17][playerid]);
+		new ac_gtc = GetTickCount();
+		if(ACInfo[killerid][acACAllow])
+		{
+			if(ac_gtc < ACInfo[killerid][acCall][15] + ac_Mtfc[15][0]) ac_FloodDetect(killerid, 15);
+			else if(ac_gtc < ACInfo[killerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(killerid, 27);
+			else ACInfo[killerid][acFloodCount][15] = ACInfo[killerid][acFloodCount][27] = 0;
+		}
+		ACInfo[killerid][acCall][27] = ACInfo[killerid][acCall][15] = ac_gtc;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[17][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerSpawn
-		a = af_OnPlayerSpawn(playerid);
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnVehicleDeath
+		return ac_OnVehicleDeath(vehicleid, killerid);
+	#else
+		return 1;
 	#endif
-    Call[17][playerid] = GetTickCount();
-    Call[26][playerid] = Call[17][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerSpawn
-	#undef OnPlayerSpawn
-#else
-	#define _ALS_OnPlayerSpawn
-#endif
-#define OnPlayerSpawn af_OnPlayerSpawn
-#if defined af_OnPlayerSpawn
-	forward af_OnPlayerSpawn(playerid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnVehicleDeath
+		#undef OnVehicleDeath
+	#else
+		#define _ALS_OnVehicleDeath
+	#endif
+	#define OnVehicleDeath ac_OnVehicleDeath
+	#if defined ac_OnVehicleDeath
+		forward ac_OnVehicleDeath(vehicleid, killerid);
+	#endif
 #endif
 
-public OnVehicleDeath(vehicleid, killerid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerText(playerid, text[])
+#else
+	public OnPlayerText(playerid, text[])
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][killerid] = gtc - Call[26][killerid];
-    Call[18][killerid] = gtc - Call[18][killerid];
-    if(Call[18][killerid] < Mtc[18])
+	if(!IsPlayerNPC(playerid))
 	{
-		FloodCount[18][killerid]++;
-		OnPlayerFlood(killerid, 18, FloodCount[18][killerid], Call[18][killerid]);
+		new ac_gtc = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_gtc < ACInfo[playerid][acCall][16] + ac_Mtfc[16][0]) return ac_FloodDetect(playerid, 16);
+			if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][16] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][16] = ac_gtc;
 	}
-	else if(Call[26][killerid] < Mtc[26])
-    {
-		FloodCount[26][killerid]++;
-		OnPlayerFlood(killerid, 26, FloodCount[26][killerid], Call[26][killerid]);
-    }
-    else
-	{
-	    FloodCount[18][killerid] = 0;
-		FloodCount[26][killerid] = 0;
-	}
-	new a = 1;
-	#if defined af_OnVehicleDeath
-		a = af_OnVehicleDeath(vehicleid, killerid);
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerText
+		return ac_OnPlayerText(playerid, text);
+	#else
+		return 1;
 	#endif
-    Call[18][killerid] = GetTickCount();
-    Call[26][killerid] = Call[18][killerid];
-	return a;
 }
 
-#if defined _ALS_OnVehicleDeath
-	#undef OnVehicleDeath
-#else
-	#define _ALS_OnVehicleDeath
-#endif
-#define OnVehicleDeath af_OnVehicleDeath
-#if defined af_OnVehicleDeath
-	forward af_OnVehicleDeath(vehicleid, killerid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerText
+		#undef OnPlayerText
+	#else
+		#define _ALS_OnPlayerText
+	#endif
+	#define OnPlayerText ac_OnPlayerText
+	#if defined ac_OnPlayerText
+		forward ac_OnPlayerText(playerid, text[]);
+	#endif
 #endif
 
-public OnPlayerText(playerid, text[])
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerEnterCheckpoint(playerid)
+#else
+	public OnPlayerEnterCheckpoint(playerid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[19][playerid] = gtc - Call[19][playerid];
-    if(Call[19][playerid] < Mtc[19])
+	if(!IsPlayerNPC(playerid))
 	{
-		FloodCount[19][playerid]++;
-		OnPlayerFlood(playerid, 19, FloodCount[19][playerid], Call[19][playerid]);
+		new ac_gtc = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_gtc < ACInfo[playerid][acCall][17] + ac_Mtfc[17][0]) ac_FloodDetect(playerid, 17);
+			else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][17] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][17] = ac_gtc;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[19][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerText
-		a = af_OnPlayerText(playerid, text);
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerEnterCheckpoint
+		return ac_OnPlayerEnterCheckpoint(playerid);
+	#else
+		return 1;
 	#endif
-    Call[19][playerid] = GetTickCount();
-    Call[26][playerid] = Call[19][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerText
-	#undef OnPlayerText
-#else
-	#define _ALS_OnPlayerText
-#endif
-#define OnPlayerText af_OnPlayerText
-#if defined af_OnPlayerText
-	forward af_OnPlayerText(playerid, text[]);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerEnterCheckpoint
+		#undef OnPlayerEnterCheckpoint
+	#else
+		#define _ALS_OnPlayerEnterCheckpoint
+	#endif
+	#define OnPlayerEnterCheckpoint ac_OnPlayerEnterCheckpoint
+	#if defined ac_OnPlayerEnterCheckpoint
+		forward ac_OnPlayerEnterCheckpoint(playerid);
+	#endif
 #endif
 
-public OnPlayerEnterCheckpoint(playerid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerLeaveCheckpoint(playerid)
+#else
+	public OnPlayerLeaveCheckpoint(playerid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[20][playerid] = gtc - Call[20][playerid];
-    if(Call[20][playerid] < Mtc[20])
+	if(!IsPlayerNPC(playerid))
 	{
-		FloodCount[20][playerid]++;
-		OnPlayerFlood(playerid, 20, FloodCount[20][playerid], Call[20][playerid]);
+		new ac_gtc = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_gtc < ACInfo[playerid][acCall][18] + ac_Mtfc[18][0]) ac_FloodDetect(playerid, 18);
+			else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][18] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][18] = ac_gtc;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[20][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerEnterCheckpoint
-		a = af_OnPlayerEnterCheckpoint(playerid);
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerLeaveCheckpoint
+		return ac_OnPlayerLeaveCheckpoint(playerid);
+	#else
+		return 1;
 	#endif
-    Call[20][playerid] = GetTickCount();
-    Call[26][playerid] = Call[20][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerEnterCheckpoint
-	#undef OnPlayerEnterCheckpoint
-#else
-	#define _ALS_OnPlayerEnterCheckpoint
-#endif
-#define OnPlayerEnterCheckpoint af_OnPlayerEnterCheckpoint
-#if defined af_OnPlayerEnterCheckpoint
-	forward af_OnPlayerEnterCheckpoint(playerid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerLeaveCheckpoint
+		#undef OnPlayerLeaveCheckpoint
+	#else
+		#define _ALS_OnPlayerLeaveCheckpoint
+	#endif
+	#define OnPlayerLeaveCheckpoint ac_OnPlayerLeaveCheckpoint
+	#if defined ac_OnPlayerLeaveCheckpoint
+		forward ac_OnPlayerLeaveCheckpoint(playerid);
+	#endif
 #endif
 
-public OnPlayerLeaveCheckpoint(playerid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerRequestSpawn(playerid)
+#else
+	public OnPlayerRequestSpawn(playerid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[21][playerid] = gtc - Call[21][playerid];
-    if(Call[21][playerid] < Mtc[21])
+	new ac_i;
+	if(!IsPlayerNPC(playerid))
 	{
-		FloodCount[21][playerid]++;
-		OnPlayerFlood(playerid, 21, FloodCount[21][playerid], Call[21][playerid]);
+		ac_i = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_i < ACInfo[playerid][acCall][19] + ac_Mtfc[19][0]) return ac_FloodDetect(playerid, 19);
+			if(ac_i < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][19] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][19] = ac_i;
 	}
-	else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[21][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerLeaveCheckpoint
-		a = af_OnPlayerLeaveCheckpoint(playerid);
+	ac_i = 1;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerRequestSpawn
+		ac_i = ac_OnPlayerRequestSpawn(playerid);
 	#endif
-    Call[21][playerid] = GetTickCount();
-    Call[26][playerid] = Call[21][playerid];
-	return a;
+	return ac_i;
 }
 
-#if defined _ALS_OnPlayerLeaveCheckpoint
-	#undef OnPlayerLeaveCheckpoint
-#else
-	#define _ALS_OnPlayerLeaveCheckpoint
-#endif
-#define OnPlayerLeaveCheckpoint af_OnPlayerLeaveCheckpoint
-#if defined af_OnPlayerLeaveCheckpoint
-	forward af_OnPlayerLeaveCheckpoint(playerid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerRequestSpawn
+		#undef OnPlayerRequestSpawn
+	#else
+		#define _ALS_OnPlayerRequestSpawn
+	#endif
+	#define OnPlayerRequestSpawn ac_OnPlayerRequestSpawn
+	#if defined ac_OnPlayerRequestSpawn
+		forward ac_OnPlayerRequestSpawn(playerid);
+	#endif
 #endif
 
-public OnPlayerRequestSpawn(playerid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerExitedMenu(playerid)
+#else
+	public OnPlayerExitedMenu(playerid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[22][playerid] = gtc - Call[22][playerid];
-    if(Call[22][playerid] < Mtc[22])
+	if(!(0 <= playerid < MAX_PLAYERS)) return 0;
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[22][playerid]++;
-		OnPlayerFlood(playerid, 22, FloodCount[22][playerid], Call[22][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][20] + ac_Mtfc[20][0]) ac_FloodDetect(playerid, 20);
+		else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][20] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[22][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerRequestSpawn
-		a = af_OnPlayerRequestSpawn(playerid);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][20] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerExitedMenu
+		return ac_OnPlayerExitedMenu(playerid);
+	#else
+		return 1;
 	#endif
-    Call[22][playerid] = GetTickCount();
-    Call[26][playerid] = Call[22][playerid];
-	return a;
 }
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerExitedMenu
+		#undef OnPlayerExitedMenu
+	#else
+		#define _ALS_OnPlayerExitedMenu
+	#endif
+	#define OnPlayerExitedMenu ac_OnPlayerExitedMenu
+	#if defined ac_OnPlayerExitedMenu
+		forward ac_OnPlayerExitedMenu(playerid);
+	#endif
+#endif
 
-#if defined _ALS_OnPlayerRequestSpawn
-	#undef OnPlayerRequestSpawn
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerExitedMenu
+		#undef OnPlayerExitedMenu
+	#else
+		#define _ALS_OnPlayerExitedMenu
+	#endif
+	#define OnPlayerExitedMenu ac_OnPlayerExitedMenu
+	#if defined ac_OnPlayerExitedMenu
+		forward ac_OnPlayerExitedMenu(playerid);
+	#endif
+#endif
+
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerEnterRaceCP(playerid)
 #else
-	#define _ALS_OnPlayerRequestSpawn
+	public OnPlayerEnterRaceCheckpoint(playerid)
 #endif
-#define OnPlayerRequestSpawn af_OnPlayerRequestSpawn
-#if defined af_OnPlayerRequestSpawn
-	forward af_OnPlayerRequestSpawn(playerid);
-#endif
-
-public OnPlayerExitedMenu(playerid)
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[23][playerid] = gtc - Call[23][playerid];
-    if(Call[23][playerid] < Mtc[23])
+	if(!IsPlayerNPC(playerid))
 	{
-		FloodCount[23][playerid]++;
-		OnPlayerFlood(playerid, 23, FloodCount[23][playerid], Call[23][playerid]);
+		new ac_gtc = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_gtc < ACInfo[playerid][acCall][21] + ac_Mtfc[21][0]) ac_FloodDetect(playerid, 21);
+			else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][21] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][21] = ac_gtc;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[23][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerExitedMenu
-		a = af_OnPlayerExitedMenu(playerid);
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerEnterRaceCheckpoint
+		return ac_OnPlayerEnterRaceCheckpoint(playerid);
+	#else
+		return 1;
 	#endif
-    Call[23][playerid] = GetTickCount();
-    Call[26][playerid] = Call[23][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerExitedMenu
-	#undef OnPlayerExitedMenu
-#else
-	#define _ALS_OnPlayerExitedMenu
-#endif
-#define OnPlayerExitedMenu af_OnPlayerExitedMenu
-#if defined af_OnPlayerExitedMenu
-	forward af_OnPlayerExitedMenu(playerid);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerEnterRaceCheckpoin\
+		|| defined _ALS_OnPlayerEnterRaceCP
+		#undef OnPlayerEnterRaceCheckpoint
+	#else
+		#define _ALS_OnPlayerEnterRaceCP
+	#endif
+	#define OnPlayerEnterRaceCheckpoint ac_OnPlayerEnterRaceCheckpoint
+	#if defined ac_OnPlayerEnterRaceCheckpoint
+		forward ac_OnPlayerEnterRaceCheckpoint(playerid);
+	#endif
 #endif
 
-public OnIncomingConnection(playerid, ip_address[], port)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerLeaveRaceCP(playerid)
+#else
+	public OnPlayerLeaveRaceCheckpoint(playerid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[25][playerid] = gtc - Call[25][playerid];
-    if(Call[25][playerid] < Mtc[25])
+	if(!IsPlayerNPC(playerid))
 	{
-		FloodCount[25][playerid]++;
-		OnPlayerFlood(playerid, 25, FloodCount[25][playerid], Call[25][playerid]);
+		new ac_gtc = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_gtc < ACInfo[playerid][acCall][22] + ac_Mtfc[22][0]) ac_FloodDetect(playerid, 22);
+			else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][22] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][22] = ac_gtc;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[25][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnIncomingConnection
-		a = af_OnIncomingConnection(playerid, ip_address, port);
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerLeaveRaceCheckpoint
+		return ac_OnPlayerLeaveRaceCheckpoint(playerid);
+	#else
+		return 1;
 	#endif
-    Call[25][playerid] = GetTickCount();
-    Call[26][playerid] = Call[25][playerid];
-    return a;
 }
 
-#if defined _ALS_OnIncomingConnection
-	#undef OnIncomingConnection
-#else
-	#define _ALS_OnIncomingConnection
-#endif
-#define OnIncomingConnection af_OnIncomingConnection
-#if defined af_OnIncomingConnection
-	forward af_OnIncomingConnection(playerid, ip_address[], port);
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerLeaveRaceCheckpoin\
+		|| defined _ALS_OnPlayerLeaveRaceCP
+		#undef OnPlayerLeaveRaceCheckpoint
+	#else
+		#define _ALS_OnPlayerLeaveRaceCP
+	#endif
+	#define OnPlayerLeaveRaceCheckpoint ac_OnPlayerLeaveRaceCheckpoint
+	#if defined ac_OnPlayerLeaveRaceCheckpoint
+		forward ac_OnPlayerLeaveRaceCheckpoint(playerid);
+	#endif
 #endif
 
-/*public OnPlayerEnterRaceCheckpoint(playerid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerClickPlayerTD(playerid, PlayerText:playertextid)
+#else
+	public OnPlayerClickPlayerTextDraw(playerid, PlayerText:playertextid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[27][playerid] = gtc - Call[27][playerid];
-    if(Call[27][playerid] < Mtc[27])
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[27][playerid]++;
-		OnPlayerFlood(playerid, 27, FloodCount[27][playerid], Call[27][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][23] + ac_Mtfc[23][0])
+		{
+			ac_FloodDetect(playerid, 23);
+			return 1;
+		}
+		if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][23] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[27][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerEnterRaceCheckpoint
-		a = af_OnPlayerEnterRaceCheckpoint(playerid);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][23] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerClickPlayerTextDraw
+		return ac_OnPlayerClickPlayerTextDraw(playerid, playertextid);
+	#else
+		return 0;
 	#endif
-    Call[27][playerid] = GetTickCount();
-    Call[26][playerid] = Call[27][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerEnterRaceCheckpoint
-	#undef OnPlayerEnterRaceCheckpoint
-#else
-	#define _ALS_OnPlayerEnterRaceCheckpoint
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerClickPlayerTextDra\
+		|| defined _ALS_OnPlayerClickPlayerTD
+		#undef OnPlayerClickPlayerTextDraw
+	#else
+		#define _ALS_OnPlayerClickPlayerTD
+	#endif
+	#define OnPlayerClickPlayerTextDraw ac_OnPlayerClickPlayerTextDraw
+	#if defined ac_OnPlayerClickPlayerTextDraw
+		forward ac_OnPlayerClickPlayerTextDraw(playerid, PlayerText:playertextid);
+	#endif
 #endif
-#define OnPlayerEnterRaceCheckpoint af_OnPlayerEnterRaceCheckpoint
-#if defined af_OnPlayerEnterRaceCheckpoint
-	forward af_OnPlayerEnterRaceCheckpoint(playerid);
-#endif*/
 
-/*public OnPlayerLeaveRaceCheckpoint(playerid)
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnVehDamageStatusUpd(vehicleid, playerid)
+#else
+	public OnVehicleDamageStatusUpdate(vehicleid, playerid)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[28][playerid] = gtc - Call[28][playerid];
-    if(Call[28][playerid] < Mtc[28])
+	new ac_gtc = GetTickCount();
+	new str[200];
+	format(str, sizeof(str), "%d, %d", ac_gtc, ACInfo[playerid][acCall][24] + ac_Mtfc[24][0]);
+	SendClientMessage(playerid, -1, str);
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[28][playerid]++;
-		OnPlayerFlood(playerid, 28, FloodCount[28][playerid], Call[28][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][24] + ac_Mtfc[24][0]) ac_FloodDetect(playerid, 24);
+		else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][24] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[28][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerLeaveRaceCheckpoint
-		a = af_OnPlayerLeaveRaceCheckpoint(playerid);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][24] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnVehicleDamageStatusUpdate
+		return ac_OnVehicleDamageStatusUpdate(vehicleid, playerid);
+	#else
+		return ac_gtc;
 	#endif
-    Call[28][playerid] = GetTickCount();
-    Call[26][playerid] = Call[28][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerLeaveRaceCheckpoint
-	#undef OnPlayerLeaveRaceCheckpoint
-#else
-	#define _ALS_OnPlayerLeaveRaceCheckpoint
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnVehicleDamageStatusUpdat\
+		|| defined _ALS_OnVehicleDamageStatusUpd
+		#undef OnVehicleDamageStatusUpdate
+	#else
+		#define _ALS_OnVehicleDamageStatusUpd
+	#endif
+	#define OnVehicleDamageStatusUpdate ac_OnVehicleDamageStatusUpdate
+	#if defined ac_OnVehicleDamageStatusUpdate
+		forward ac_OnVehicleDamageStatusUpdate(vehicleid, playerid);
+	#endif
 #endif
-#define OnPlayerLeaveRaceCheckpoint af_OnPlayerLeaveRaceCheckpoint
-#if defined af_OnPlayerLeaveRaceCheckpoint
-	forward af_OnPlayerLeaveRaceCheckpoint(playerid);
-#endif*/
 
-/*public OnPlayerClickPlayerTextDraw(playerid, PlayerText:playertextid)
+#if defined OnVehicleSirenStateChange
+	#if defined _inc_y_hooks || defined _INC_y_hooks
+		hook OnVehicleSirenChange(playerid, vehicleid, newstate)
+	#else
+		public OnVehicleSirenStateChange(playerid, vehicleid, newstate)
+	#endif
+	{
+		if(!IsPlayerNPC(playerid))
+		{
+			new ac_gtc = GetTickCount();
+			if(ACInfo[playerid][acACAllow])
+			{
+				if(ac_gtc < ACInfo[playerid][acCall][25] + ac_Mtfc[25][0]) ac_FloodDetect(playerid, 25);
+				else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+				else ACInfo[playerid][acFloodCount][25] = ACInfo[playerid][acFloodCount][27] = 0;
+			}
+			ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][25] = ac_gtc;
+		}
+		#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+			&& defined ac_OnVehicleSirenStateChange
+			return ac_OnVehicleSirenStateChange(playerid, vehicleid, newstate);
+		#else
+			return 0;
+		#endif
+	}
+
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks
+		#if defined _ALS_OnVehicleSirenStateChange
+			#undef OnVehicleSirenStateChange
+		#else
+			#define _ALS_OnVehicleSirenStateChange
+		#endif
+		#define OnVehicleSirenStateChange ac_OnVehicleSirenStateChange
+		#if defined ac_OnVehicleSirenStateChange
+			forward ac_OnVehicleSirenStateChange(playerid, vehicleid, newstate);
+		#endif
+	#endif
+#endif
+
+#if defined OnPlayerSelectDynamicObject
+	#if defined _inc_y_hooks || defined _INC_y_hooks
+		#if defined STREAMER_ENABLE_TAGS
+			hook OnPlayerSelectDynObject(playerid, STREAMER_TAG_OBJECT:objectid, modelid, Float:x, Float:y, Float:z)
+		#else
+			hook OnPlayerSelectDynObject(playerid, objectid, modelid, Float:x, Float:y, Float:z)
+		#endif
+	#else
+		#if defined STREAMER_ENABLE_TAGS
+			public OnPlayerSelectDynamicObject(playerid, STREAMER_TAG_OBJECT:objectid, modelid, Float:x, Float:y, Float:z)
+		#else
+			public OnPlayerSelectDynamicObject(playerid, objectid, modelid, Float:x, Float:y, Float:z)
+		#endif
+	#endif
+	{
+		new ac_gtc = GetTickCount();
+		if(ACInfo[playerid][acACAllow])
+		{
+			if(ac_gtc < ACInfo[playerid][acCall][26] + ac_Mtfc[26][0]) ac_FloodDetect(playerid, 26);
+			else if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+			else ACInfo[playerid][acFloodCount][26] = ACInfo[playerid][acFloodCount][27] = 0;
+		}
+		ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][26] = ac_gtc;
+		#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+			&& defined ac_OnPlayerSelectDynamicObject
+			return ac_OnPlayerSelectDynamicObject(playerid, objectid, modelid, x, y, z);
+		#else
+			return 1;
+		#endif
+	}
+
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks
+		#if defined _ALS_OnPlayerSelectDynamicObjec\
+			|| defined _ALS_OnPlayerSelectDynObject || defined _ALS_OnPlayerSelectDynamicObj
+			#undef OnPlayerSelectDynamicObject
+		#else
+			#define _ALS_OnPlayerSelectDynObject
+		#endif
+		#define OnPlayerSelectDynamicObject ac_OnPlayerSelectDynamicObject
+		#if defined ac_OnPlayerSelectDynamicObject
+			#if defined STREAMER_ENABLE_TAGS
+				forward ac_OnPlayerSelectDynamicObject(playerid, STREAMER_TAG_OBJECT:objectid, modelid, Float:x, Float:y, Float:z);
+			#else
+				forward ac_OnPlayerSelectDynamicObject(playerid, objectid, modelid, Float:x, Float:y, Float:z);
+			#endif
+		#endif
+	#endif
+#endif
+
+#if defined _inc_y_hooks || defined _INC_y_hooks
+	hook OnPlayerSelectObject(playerid, type, objectid, modelid, Float:fX, Float:fY, Float:fZ)
+#else
+	public OnPlayerSelectObject(playerid, type, objectid, modelid, Float:fX, Float:fY, Float:fZ)
+#endif
 {
-    new gtc = GetTickCount();
-    Call[26][playerid] = gtc - Call[26][playerid];
-    Call[29][playerid] = gtc - Call[29][playerid];
-    if(Call[29][playerid] < Mtc[29])
+	new ac_gtc = GetTickCount();
+	if(ACInfo[playerid][acACAllow])
 	{
-		FloodCount[29][playerid]++;
-		OnPlayerFlood(playerid, 29, FloodCount[29][playerid], Call[29][playerid]);
+		if(ac_gtc < ACInfo[playerid][acCall][26] + ac_Mtfc[26][0])
+		{
+			ac_FloodDetect(playerid, 26);
+			return 1;
+		}
+		if(ac_gtc < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
+		else ACInfo[playerid][acFloodCount][26] = ACInfo[playerid][acFloodCount][27] = 0;
 	}
-    else if(Call[26][playerid] < Mtc[26])
-    {
-		FloodCount[26][playerid]++;
-		OnPlayerFlood(playerid, 26, FloodCount[26][playerid], Call[26][playerid]);
-    }
-    else
-	{
-	    FloodCount[29][playerid] = 0;
-		FloodCount[26][playerid] = 0;
-	}
-    new a = 1;
-	#if defined af_OnPlayerClickPlayerTextDraw
-		a = af_OnPlayerClickPlayerTextDraw(playerid, playertextid);
+	ACInfo[playerid][acCall][27] = ACInfo[playerid][acCall][26] = ac_gtc;
+	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
+		&& defined ac_OnPlayerSelectObject
+		return ac_OnPlayerSelectObject(playerid, type, objectid, modelid, fX, fY, fZ);
+	#else
+		return 0;
 	#endif
-    Call[29][playerid] = GetTickCount();
-    Call[26][playerid] = Call[29][playerid];
-	return a;
 }
 
-#if defined _ALS_OnPlayerClickPlayerTextDraw
-	#undef OnPlayerClickPlayerTextDraw
-#else
-	#define _ALS_OnPlayerClickPlayerTextDraw
+#if !defined _inc_y_hooks && !defined _INC_y_hooks
+	#if defined _ALS_OnPlayerSelectObject
+		#undef OnPlayerSelectObject
+	#else
+		#define _ALS_OnPlayerSelectObject
+	#endif
+	#define OnPlayerSelectObject ac_OnPlayerSelectObject
+	#if defined ac_OnPlayerSelectObject
+		forward ac_OnPlayerSelectObject(playerid, type, objectid, modelid, Float:fX, Float:fY, Float:fZ);
+	#endif
 #endif
-#define OnPlayerClickPlayerTextDraw af_OnPlayerClickPlayerTextDraw
-#if defined af_OnPlayerClickPlayerTextDraw
-	forward af_OnPlayerClickPlayerTextDraw(playerid, PlayerText:playertextid);
-#endif*/
+
+static ac_FloodDetect(playerid, publicid)
+{
+	if(++ACInfo[playerid][acFloodCount][publicid] > ac_Mtfc[publicid][1])
+	{
+		printf("playerid: %d, %d, %d", playerid, ac_Mtfc[publicid][1], publicid);
+        Kick(playerid);
+    }
+	ACInfo[playerid][acCall][publicid] = ACInfo[playerid][acCall][27] = GetTickCount();
+	return 0;
+}
