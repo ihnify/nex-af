@@ -1053,9 +1053,6 @@ public OnEnterExitModShop(playerid, enterexit, interiorid)
 #endif
 {
 	new ac_gtc = GetTickCount();
-	new str[200];
-	format(str, sizeof(str), "%d, %d", ac_gtc, ACInfo[playerid][acCall][24] + ac_Mtfc[24][0]);
-	SendClientMessage(playerid, -1, str);
 	if(ACInfo[playerid][acACAllow])
 	{
 		if(ac_gtc < ACInfo[playerid][acCall][24] + ac_Mtfc[24][0]) ac_FloodDetect(playerid, 24);
