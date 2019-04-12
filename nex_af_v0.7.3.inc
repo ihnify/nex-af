@@ -2,8 +2,7 @@
 
 //Min time call public
 //Time in Milliseconds
-static const ac_Mtfc[][] =
-{
+static const ac_Mtfc[][] = {
 	{150, 5},	//0 OnDialogResponse
 	{800, 2},	//1 OnEnterExitModShop
 	{250, 5},	//2 OnPlayerClickMap
@@ -34,32 +33,28 @@ static const ac_Mtfc[][] =
 	{50, 8}		//27 Cross-public
 };
 
-enum acInfo{
-	acACAllow,
-	acCall[sizeof ac_Mtfc],			//Time call public
+enum acInfo {
+	bool:acACAllow, // enable/disable af
+	acCall[sizeof ac_Mtfc],	//Time call public
 	acFloodCount[sizeof ac_Mtfc], //Flood count
 }	
-static 
-	ACInfo[MAX_PLAYERS][acInfo];
-
 
 static 
-    ac_vType[] =
-{
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0,
-	0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 3, 2, 5, 0, 0, 0, 3, 3, 3, 0, 0, 0, 0, 0,
-	1, 5, 5, 5, 0, 0, 0, 0, 5, 2, 0, 5, 3, 3, 0, 0, 1, 0, 0, 0,
-	0, 4, 0, 0, 3, 0, 0, 2, 2, 0, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 1, 1, 1, 0, 0, 0, 0, 0, 1,
-	1, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
-	0, 5, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 1, 1, 0, 3, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-static ac_IsABoat(modelid) return (430 <= modelid <= 595 && ac_vType[modelid - 400] == 3);
+	ACInfo[MAX_PLAYERS][acInfo],
 
+	ac_vType[] = {
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0,
+		0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 3, 2, 5, 0, 0, 0, 3, 3, 3, 0, 0, 0, 0, 0,
+		1, 5, 5, 5, 0, 0, 0, 0, 5, 2, 0, 5, 3, 3, 0, 0, 1, 0, 0, 0,
+		0, 4, 0, 0, 3, 0, 0, 2, 2, 0, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 1, 1, 1, 0, 0, 0, 0, 0, 1,
+		1, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+		0, 5, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 1, 1, 0, 3, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	};
 
 #if defined _inc_y_hooks || defined _INC_y_hooks
 	hook OnPlayerConnect(playerid)
@@ -67,7 +62,8 @@ static ac_IsABoat(modelid) return (430 <= modelid <= 595 && ac_vType[modelid - 4
 	public OnPlayerConnect(playerid)
 #endif
 {
-	ACInfo[playerid][acACAllow] = 1; // Enable cheat for player
+	for(new ac_i = 0; ac_i < sizeof ac_Mtfc; ++ac_i) ACInfo[playerid][acFloodCount][ac_i] = 0;
+	ACInfo[playerid][acACAllow] = true; // enable af
 	#if !defined _inc_y_hooks && !defined _INC_y_hooks\
 		&& defined ac_OnPlayerConnect
 		return ac_OnPlayerConnect(playerid);
@@ -569,7 +565,7 @@ public OnEnterExitModShop(playerid, enterexit, interiorid)
 					new ac_model;
 					if(oldstate == PLAYER_STATE_DRIVER) ac_model = GetVehicleModel(playerid);
 					else if(newstate == PLAYER_STATE_DRIVER) ac_model = GetVehicleModel(GetPlayerVehicleID(playerid));
-					if(!ac_IsABoat(ac_model)) ac_FloodDetect(playerid, 11);
+					if(!(430 <= ac_model <= 595 && ac_vType[ac_model - 400] == 3)) ac_FloodDetect(playerid, 11);
 				}
 			}
 			else if(ac_i < ACInfo[playerid][acCall][27] + ac_Mtfc[27][0]) ac_FloodDetect(playerid, 27);
